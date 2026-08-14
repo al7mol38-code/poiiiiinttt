@@ -7,6 +7,12 @@ import discord
 from discord.ext import commands
 
 # =========================
+# إعداد الروم المخصص للبوت الثاني
+# =========================
+# ضع هنا ID الروم الخاص بالبوت الثاني فقط
+ALLOWED_CHANNEL_ID = 123456789012345678  
+
+# =========================
 # إعدادات الرتب المسموح لها
 # =========================
 
@@ -21,13 +27,14 @@ ALLOWED_ROLE_IDS = {
 }
 
 # =========================
-# MongoDB
+# MongoDB (مستقل للبوت الثاني)
 # =========================
 
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client["pointsbot"]
-points_collection = db["points"]
+# تم تغيير اسم الكولكشن إلى points_bot2 لفصل البيانات والليدربورد
+points_collection = db["points_bot2"]
 
 # =========================
 # إعداد البوت
@@ -42,6 +49,14 @@ bot = commands.Bot(
     intents=intents,
     help_command=None
 )
+
+# =========================
+# تقييد البوت بروم محدد للأوامر الرسمية
+# =========================
+
+@bot.check
+async def restrict_channel(ctx):
+    return ctx.channel.id == ALLOWED_CHANNEL_ID
 
 # =========================
 # الدوال المساعدة
@@ -73,6 +88,10 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     if message.author.bot:
+        return
+
+    # يتجاهل الرسائل إذا لم تكن في الروم المخصص للبوت الثاني
+    if message.channel.id != ALLOWED_CHANNEL_ID:
         return
 
     await bot.process_commands(message)
