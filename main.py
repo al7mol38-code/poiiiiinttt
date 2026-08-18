@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import threading
 from flask import Flask
 from pymongo import MongoClient
@@ -17,11 +18,10 @@ ALLOWED_ROLE_IDS = {OWNER_ROLE_ID, CO_OWNER_ROLE_ID, NEW_ROLE_ID}
 RESET_ALLOWED_ROLE_IDS = {CO_OWNER_ROLE_ID, OWNER_ROLE_ID}
 
 # =========================
-# MongoDB (تعديل الاتصال لتجاوز الحظر)
+# MongoDB
 # =========================
 MONGO_URI = os.getenv("MONGO_URI")
 
-# إضافة مهلة زمنية وإعدادات شبكة لمنع حظر Cloudflare أثناء الاتصال
 client = MongoClient(
     MONGO_URI,
     connectTimeoutMS=30000,
@@ -194,13 +194,24 @@ async def reset_points(ctx, member: discord.Member = None):
 # =========================
 app = Flask(__name__)
 @app.route("/")
-def home(): 
+def home():
     return "Bot 1 Online"
 
-def run_flask(): 
+def run_flask():
     port = int(os.getenv("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
+# =========================
+# نقطة التشغيل
+# =========================
 if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
-    bot.run(os.getenv("DISCORD_TOKEN"))
+    
+    # مهلة لتفادي حظر التكرار مع Cloudflare
+    time.sleep(5)
+    
+    token = os.getenv("DISCORD_TOKEN")
+    if token:
+        bot.run(token)
+    else:
+        print("❌ لم يتم العثور على DISCORD_TOKEN في البيئة!")
