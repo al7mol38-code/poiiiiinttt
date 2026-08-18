@@ -17,10 +17,19 @@ ALLOWED_ROLE_IDS = {OWNER_ROLE_ID, CO_OWNER_ROLE_ID, NEW_ROLE_ID}
 RESET_ALLOWED_ROLE_IDS = {CO_OWNER_ROLE_ID, OWNER_ROLE_ID}
 
 # =========================
-# MongoDB (خاص بالبوت الأول)
+# MongoDB (تعديل الاتصال لتجاوز الحظر)
 # =========================
 MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
+
+# إضافة مهلة زمنية وإعدادات شبكة لمنع حظر Cloudflare أثناء الاتصال
+client = MongoClient(
+    MONGO_URI,
+    connectTimeoutMS=30000,
+    socketTimeoutMS=30000,
+    serverSelectionTimeoutMS=30000,
+    retryWrites=True
+)
+
 db = client["pointsbot"]
 points_collection = db["points_bot1"]
 
@@ -43,15 +52,22 @@ def has_reset_permission(member):
     return any(role.id in RESET_ALLOWED_ROLE_IDS for role in member.roles)
 
 def get_points(user_id):
-    user = points_collection.find_one({"_id": str(user_id)})
-    return user["points"] if user else 0
+    try:
+        user = points_collection.find_one({"_id": str(user_id)})
+        return user["points"] if user else 0
+    except Exception as e:
+        print(f"MongoDB Error: {e}")
+        return 0
 
 def set_points(user_id, points):
-    points_collection.update_one(
-        {"_id": str(user_id)},
-        {"$set": {"points": points}},
-        upsert=True
-    )
+    try:
+        points_collection.update_one(
+            {"_id": str(user_id)},
+            {"$set": {"points": points}},
+            upsert=True
+        )
+    except Exception as e:
+        print(f"MongoDB Update Error: {e}")
 
 # =========================
 # أحداث البوت
@@ -135,7 +151,13 @@ async def help_command(ctx):
 
 @bot.command(name="توب")
 async def top(ctx):
-    users = list(points_collection.find().sort("points", -1).limit(10))
+    try:
+        users = list(points_collection.find().sort("points", -1).limit(10))
+    except Exception as e:
+        await ctx.send("❌ حدث خطأ أثناء جلب قائمة المتصدرين.")
+        print(f"Top Command Error: {e}")
+        return
+
     if not users:
         await ctx.send("📭 لا توجد نقاط مسجلة.")
         return
@@ -160,17 +182,24 @@ async def reset_points(ctx, member: discord.Member = None):
         set_points(member.id, 0)
         await ctx.send(f"🔄 تم تصفير نقاط {member.mention} بنجاح!")
     else:
-        points_collection.delete_many({})
-        await ctx.send("⚠️ **تم تصفير جميع النقاط بنجاح!**")
+        try:
+            points_collection.delete_many({})
+            await ctx.send("⚠️ **تم تصفير جميع النقاط بنجاح!**")
+        except Exception as e:
+            await ctx.send("❌ حدث خطأ أثناء تصفير قاعدة البيانات.")
+            print(f"Reset Error: {e}")
 
 # =========================
 # Flask (Keep Alive)
 # =========================
 app = Flask(__name__)
 @app.route("/")
-def home(): return "Bot 1 Online"
+def home(): 
+    return "Bot 1 Online"
 
-def run_flask(): app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
+def run_flask(): 
+    port = int(os.getenv("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
