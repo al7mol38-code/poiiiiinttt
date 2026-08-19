@@ -81,8 +81,6 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    await bot.process_commands(message)
-
     content = message.content.strip()
 
     # العمليات بواسطة الرد (Reply)
@@ -91,9 +89,11 @@ async def on_message(message):
             referenced_msg = await message.channel.fetch_message(message.reference.message_id)
             target_member = referenced_msg.author
         except Exception:
+            await bot.process_commands(message)
             return
 
-        if target_member.bot:
+        # منع التعامل مع البوتات إذا كانت الرسالة تخص النقاط
+        if target_member.bot and (content == "نقاط" or re.search(r"^نقاط\s*[\+\-]\d+$", content)):
             await message.channel.send("❌ لا يمكنك التعامل مع البوتات!")
             return
 
@@ -127,6 +127,10 @@ async def on_message(message):
                 color=color
             )
             await message.reply(embed=embed, mention_author=False)
+            return
+
+    # معالجة باقي الأوامر الرسمية مثل (=توب، =تصفير، الخ)
+    await bot.process_commands(message)
 
 # =========================
 # الأوامر الرسمية
