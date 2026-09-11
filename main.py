@@ -4,9 +4,6 @@ import aiosqlite
 import discord
 from discord.ext import commands
 
-# =========================
-# إعدادات الرتب
-# =========================
 OWNER_ROLE_ID = 1533463569683845160
 CO_OWNER_ROLE_ID = 1533463570564649121
 NEW_ROLE_ID = 1533463593201307780
@@ -14,23 +11,15 @@ NEW_ROLE_ID = 1533463593201307780
 ALLOWED_ROLE_IDS = {OWNER_ROLE_ID, CO_OWNER_ROLE_ID, NEW_ROLE_ID}
 RESET_ALLOWED_ROLE_IDS = {CO_OWNER_ROLE_ID, OWNER_ROLE_ID}
 
-# مسار حفظ قاعدة البيانات
-DB_NAME = "points.db"
+DB_NAME = "points_bot1.db"
 
-# =========================
-# إعداد البوت
-# =========================
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="=", intents=intents, help_command=None)
 
-# =========================
-# التعامل مع قاعدة البيانات (SQLite)
-# =========================
 async def init_db():
-    """إنشاء الجدول تلقائياً عند تشغيل البوت"""
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS points_bot1 (
@@ -41,14 +30,12 @@ async def init_db():
         await db.commit()
 
 async def get_points(user_id: int) -> int:
-    """جلب نقاط المستخدم"""
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT points FROM points_bot1 WHERE user_id = ?", (str(user_id),)) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
 async def set_points(user_id: int, points: int):
-    """إضافة أو تحديث نقاط المستخدم"""
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("""
             INSERT INTO points_bot1 (user_id, points)
@@ -57,22 +44,22 @@ async def set_points(user_id: int, points: int):
         """, (str(user_id), points))
         await db.commit()
 
-# =========================
-# الدوال المساعدة للصلاحيات
-# =========================
 def has_points_permission(member: discord.Member) -> bool:
     return any(role.id in ALLOWED_ROLE_IDS for role in member.roles)
 
 def has_reset_permission(member: discord.Member) -> bool:
     return any(role.id in RESET_ALLOWED_ROLE_IDS for role in member.roles)
 
-# =========================
-# أحداث البوت
-# =========================
 @bot.event
 async def on_ready():
-    await init_db()  # تجهيز قاعدة البيانات
-    print(f"✅ تم تشغيل البوت بنجاح باسم: {bot.user}")
+    await init_db()
+    print(f"✅ تم تشغيل البوت الأول بنجاح باسم: {bot.user}")
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return
+    raise error
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -81,21 +68,21 @@ async def on_message(message: discord.Message):
 
     content = message.content.strip()
 
-    # العمليات بواسطة الرد (Reply)
+    if content.startswith("="):
+        await bot.process_commands(message)
+        return
+
     if message.reference:
         try:
             referenced_msg = await message.channel.fetch_message(message.reference.message_id)
             target_member = referenced_msg.author
         except Exception:
-            await bot.process_commands(message)
             return
 
-        # منع التعامل مع البوتات
         if target_member.bot and (content == "نقاط" or re.search(r"^نقاط\s*[\+\-]\d+$", content)):
             await message.channel.send("❌ لا يمكنك التعامل مع البوتات!")
             return
 
-        # عرض النقاط بالرد
         if content == "نقاط":
             user_pts = await get_points(target_member.id)
             embed = discord.Embed(
@@ -105,7 +92,6 @@ async def on_message(message: discord.Message):
             await message.reply(embed=embed, mention_author=False)
             return
 
-        # إضافة / خصم نقاط بالرد
         match = re.search(r"^نقاط\s*([\+\-]\d+)$", content)
         if match:
             if not has_points_permission(message.author):
@@ -128,16 +114,10 @@ async def on_message(message: discord.Message):
             await message.reply(embed=embed, mention_author=False)
             return
 
-    # معالجة الأوامر الرسمية
-    await bot.process_commands(message)
-
-# =========================
-# الأوامر الرسمية
-# =========================
 @bot.command(name="مساعدة")
 async def help_command(ctx):
     embed = discord.Embed(
-        title="📋 قائمة الأوامر",
+        title="📋 قائمة الأوامر (البوت الأول)",
         description=(
             "**بالرد على العضو:**\n"
             "• `نقاط` ➜ عرض النقاط\n"
@@ -148,7 +128,7 @@ async def help_command(ctx):
             "• `=تصفير` ➜ تصفير جميع النقاط\n"
             "• `=تصفير @العضو` ➜ تصفير نقاط عضو معين"
         ),
-        color=discord.Color.gold()
+        color=discord.Color.blue()
     )
     await ctx.send(embed=embed)
 
@@ -169,7 +149,7 @@ async def top(ctx):
         medal = "🥇" if index == 1 else "🥈" if index == 2 else "🥉" if index == 3 else f"**{index}.**"
         description += f"{medal} {name} — ⭐ **{points}** نقطة\n"
 
-    embed = discord.Embed(title="🏆 قائمة المتصدرين", description=description, color=discord.Color.gold())
+    embed = discord.Embed(title="🏆 قائمة المتصدرين", description=description, color=discord.Color.blue())
     await ctx.send(embed=embed)
 
 @bot.command(name="تصفير", aliases=["ريست", "reset"])
@@ -187,9 +167,6 @@ async def reset_points(ctx, member: discord.Member = None):
             await db.commit()
             await ctx.send("⚠️ **تم تصفير جميع النقاط بنجاح!**")
 
-# =========================
-# تشغيل البوت
-# =========================
 if __name__ == "__main__":
     token = os.getenv("DISCORD_TOKEN")
     if token:
