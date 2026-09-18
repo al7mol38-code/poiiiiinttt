@@ -11,7 +11,8 @@ NEW_ROLE_ID = 1533463593201307780
 ALLOWED_ROLE_IDS = {OWNER_ROLE_ID, CO_OWNER_ROLE_ID, NEW_ROLE_ID}
 RESET_ALLOWED_ROLE_IDS = {CO_OWNER_ROLE_ID, OWNER_ROLE_ID}
 
-DB_NAME = "points_bot1.db"
+# مسار قاعدة البيانات (يدعم الاستضافة الدائمة)
+DB_NAME = "/data/points_bot1.db" if os.path.exists('/data') else "points_bot1.db"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -20,6 +21,8 @@ intents.members = True
 bot = commands.Bot(command_prefix="=", intents=intents, help_command=None)
 
 async def init_db():
+    if os.path.exists('/data'):
+        os.makedirs("/data", exist_ok=True)
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS points_bot1 (
