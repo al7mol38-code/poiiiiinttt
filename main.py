@@ -8,6 +8,13 @@ OWNER_ROLE_ID = 1533463569683845160
 CO_OWNER_ROLE_ID = 1533463570564649121
 NEW_ROLE_ID = 1533463593201307780
 
+# آديات الرومات (القنوات) التي سيرسل البوت الردود فيها دائماً
+TARGET_CHANNEL_IDS = {
+    1533463930528333925,
+    1533463933627662446,
+    1533463914816471221
+}
+
 ALLOWED_ROLE_IDS = {OWNER_ROLE_ID, CO_OWNER_ROLE_ID, NEW_ROLE_ID}
 RESET_ALLOWED_ROLE_IDS = {CO_OWNER_ROLE_ID, OWNER_ROLE_ID}
 
@@ -53,6 +60,18 @@ def has_points_permission(member: discord.Member) -> bool:
 def has_reset_permission(member: discord.Member) -> bool:
     return any(role.id in RESET_ALLOWED_ROLE_IDS for role in member.roles)
 
+# دالة مساعدة لإرسال الردود لجميع الرومات المحددة
+async def send_to_target_channels(guild: discord.Guild, embed: discord.Embed = None, content: str = None):
+    if not guild:
+        return
+    for channel_id in TARGET_CHANNEL_IDS:
+        channel = guild.get_channel(channel_id)
+        if channel:
+            try:
+                await channel.send(content=content, embed=embed)
+            except Exception:
+                pass
+
 @bot.event
 async def on_ready():
     await init_db()
@@ -83,7 +102,7 @@ async def on_message(message: discord.Message):
             return
 
         if target_member.bot and (content == "نقاط" or re.search(r"^نقاط\s*[\+\-]\d+$", content)):
-            await message.channel.send("❌ لا يمكنك التعامل مع البوتات!")
+            await send_to_target_channels(message.guild, content="❌ لا يمكنك التعامل مع البوتات!")
             return
 
         if content == "نقاط":
@@ -92,13 +111,13 @@ async def on_message(message: discord.Message):
                 description=f"⭐ نقاط {target_member.mention}: **{user_pts}**",
                 color=discord.Color.blue()
             )
-            await message.reply(embed=embed, mention_author=False)
+            await send_to_target_channels(message.guild, embed=embed)
             return
 
         match = re.search(r"^نقاط\s*([\+\-]\d+)$", content)
         if match:
             if not has_points_permission(message.author):
-                await message.reply("❌ ليس لديك صلاحية لتعديل النقاط.", mention_author=False)
+                await send_to_target_channels(message.guild, content="❌ ليس لديك صلاحية لتعديل النقاط.")
                 return
 
             amount = int(match.group(1))
@@ -114,7 +133,7 @@ async def on_message(message: discord.Message):
                 description=f"✅ تم {action_text} نقطة لـ {target_member.mention}\n⭐ المجموع الحالي: **{new_pts}**",
                 color=color
             )
-            await message.reply(embed=embed, mention_author=False)
+            await send_to_target_channels(message.guild, embed=embed)
             return
 
 @bot.command(name="مساعدة")
@@ -133,7 +152,7 @@ async def help_command(ctx):
         ),
         color=discord.Color.blue()
     )
-    await ctx.send(embed=embed)
+    await send_to_target_channels(ctx.guild, embed=embed)
 
 @bot.command(name="توب")
 async def top(ctx):
@@ -142,7 +161,7 @@ async def top(ctx):
             users = await cursor.fetchall()
 
     if not users:
-        await ctx.send("📭 لا توجد نقاط مسجلة.")
+        await send_to_target_channels(ctx.guild, content="📭 لا توجد نقاط مسجلة.")
         return
 
     description = ""
@@ -153,22 +172,22 @@ async def top(ctx):
         description += f"{medal} {name} — ⭐ **{points}** نقطة\n"
 
     embed = discord.Embed(title="🏆 قائمة المتصدرين", description=description, color=discord.Color.blue())
-    await ctx.send(embed=embed)
+    await send_to_target_channels(ctx.guild, embed=embed)
 
 @bot.command(name="تصفير", aliases=["ريست", "reset"])
 async def reset_points(ctx, member: discord.Member = None):
     if not has_reset_permission(ctx.author):
-        await ctx.send("❌ ليس لديك صلاحية لإجراء التصفير.")
+        await send_to_target_channels(ctx.guild, content="❌ ليس لديك صلاحية لإجراء التصفير.")
         return
 
     async with aiosqlite.connect(DB_NAME) as db:
         if member:
             await set_points(member.id, 0)
-            await ctx.send(f"🔄 تم تصفير نقاط {member.mention} بنجاح!")
+            await send_to_target_channels(ctx.guild, content=f"🔄 تم تصفير نقاط {member.mention} بنجاح!")
         else:
             await db.execute("DELETE FROM points_bot1")
             await db.commit()
-            await ctx.send("⚠️ **تم تصفير جميع النقاط بنجاح!**")
+            await send_to_target_channels(ctx.guild, content="⚠️ **تم تصفير جميع النقاط بنجاح!**")
 
 if __name__ == "__main__":
     token = os.getenv("DISCORD_TOKEN")
